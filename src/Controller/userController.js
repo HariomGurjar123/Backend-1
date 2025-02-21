@@ -48,7 +48,7 @@ const generateOTP = () => ({
   otp: Math.floor(100000 + Math.random() * 900000).toString(),
   expiresAt: Date.now() + 5 * 60 * 1000,
 });
-
+ 
 // =================== Sign Up Function =====================
 const signUpUser = asynchandler(async (req, res) => {
   const { username, email, number, password, role } = req.body;
