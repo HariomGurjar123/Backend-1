@@ -4,92 +4,156 @@ import { ApiResponse } from "../Utils/apiResponse.js";
 import uploadOnCloudinary from "../Utils/cloudinary.js";
 import asynchandler from "../Utils/asyncHandler.js";
 import Category from "../Model/categoryModel.js";
-import multer from "multer";
 
-// Multer configuration
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB file size limit
-}).fields([
-  { name: 'pdf', maxCount: 1 },
-  { name: 'videos', maxCount: 10 },
-  { name: 'thumbnail', maxCount: 1 },
-]);
 
 // ============== Create a new course ===============
-const createCourse = asynchandler(async (req, res, next) => {
-  upload(req, res, async (err) => {
-    if (err) {
-      return next(new ApiError(400, err.message));
+const createCourse = asynchandler(async (req, res) => {
+  try {
+    const { actualPrice, discountPrice, duration, language, category, chaptersData } = req.body;
+
+    if (!actualPrice || !discountPrice || !duration || !language || !category || !chaptersData) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    try {
-      const { name, price, description, duration, language, category, demoVideo } = req.body;
-      const { pdf, videos, thumbnail } = req.files || {};
+    const categoryExists = await Category.findById(category);
+    if (!categoryExists) {
+      return res.status(404).json({ message: "Category not found" });
+    }
 
-      // Ensure that the category exists
-      const categoryDoc = await Category.findOne({ name: category });
-      if (!categoryDoc) {
-        return next(new ApiError(404, "Category not found"));
-      }
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return res.status(400).json({ message: "No files uploaded" });
+    }
 
-      // Upload thumbnail (if it exists)
-      const thumbnailUrl = thumbnail
-        ? (await uploadOnCloudinary(thumbnail[0].buffer, "courses/thumbnails")).secure_url
-        : undefined;
+    console.log(req.files); // ✅ Debug Log
 
-      // Handle multiple video uploads
-      let videoDetails = [];
-      if (videos && videos.length > 0) {
-        for (let video of videos) {
-          const videoUrl = await uploadOnCloudinary(video.buffer, "courses/videos");
-          videoDetails.push({
-            url: videoUrl.secure_url,
-            title: video.originalname, // Assuming title is the original file name
-            thumbnail: video.thumbnail ? (await uploadOnCloudinary(video.thumbnail.buffer, "courses/thumbnails")).secure_url : undefined,
-            pdf: video.pdf ? (await uploadOnCloudinary(video.pdf.buffer, "courses/pdfs")).secure_url : undefined,
+    const parsedChapters = JSON.parse(chaptersData || "[]");
+    const chapters = [];
+
+    const videos = req.files["videos"] || [];
+    const thumbnails = req.files["thumbnails"] || [];
+    const pdfs = req.files?.["pdfUrl"] || []; // ✅ Ensure pdfs is always an array
+
+    let videoIndex = 0;
+    let thumbnailIndex = 0;
+    let pdfIndex = 0;
+
+    for (let i = 0; i < parsedChapters.length; i++) {
+      const chapter = parsedChapters[i];
+      const chapterVideos = [];
+
+      // **Videos Assign कर रहे हैं**
+      if (chapter.videos?.length > 0) {
+        for (let j = 0; j < chapter.videos.length; j++) {
+          let videoUrl = "";
+          let thumbnailUrl = "";
+
+          if (videoIndex < videos.length) {
+            const videoFile = videos[videoIndex];
+            if (videoFile?.path) {
+              try {
+                const videoUpload = await uploadOnCloudinary(videoFile.path, "videos");
+                videoUrl = videoUpload?.secure_url || "";
+              } catch (error) {
+                console.error("Video Upload Error:", error);
+              }
+            }
+            videoIndex++;
+          }
+
+          // **Thumbnail Handling Fix**
+          if (thumbnailIndex < thumbnails.length) {
+            const thumbnailFile = thumbnails[thumbnailIndex];
+            if (thumbnailFile?.path) {
+              try {
+                const thumbnailUpload = await uploadOnCloudinary(thumbnailFile.path, "thumbnails");
+                thumbnailUrl = thumbnailUpload?.secure_url || "";
+              } catch (error) {
+                console.error("Thumbnail Upload Error:", error);
+              }
+            }
+            thumbnailIndex++;
+          }
+
+          chapterVideos.push({
+            videoUrl,
+            title: chapter.videos[j]?.title || "Untitled Video",
+            duration: chapter.videos[j]?.duration || "0:00",
+            thumbnail: thumbnailUrl,
           });
         }
       }
 
-      // Handle PDF upload (if it exists)
-      let pdfUrl;
-      if (pdf && pdf.length > 0) {
-        const result = await uploadOnCloudinary(pdf[0].buffer, "courses/pdfs");
-        pdfUrl = result.secure_url;
+      // **हर Chapter के लिए सिर्फ एक PDF अपलोड करें**
+
+      let pdfUrl = ""; // Default blank
+      if (pdfIndex < pdfs.length) {
+        const pdfFile = pdfs[pdfIndex];
+        console.log(`Processing PDF for Chapter ${i + 1}:`, pdfFile?.path);
+    
+        if (pdfFile?.path) {
+          try {
+            const pdfUpload = await uploadOnCloudinary(pdfFile.path, "pdfs");
+            pdfUrl = pdfUpload?.secure_url || "";
+            console.log(`Uploaded PDF for Chapter ${i + 1}:`, pdfUrl);
+          } catch (error) {
+            console.error(`PDF Upload Error for Chapter ${i + 1}:`, error);
+          }
+        }
+        pdfIndex++; // ✅ Next chapter ke liye next PDF use hogi
       }
+    
+      console.log(`Chapter ${i + 1} PDF URL:`, pdfUrl);
 
-      // **Convert description array to string if necessary**
-      const courseDescription = Array.isArray(description) ? description.join(", ") : description;
-
-      // Create the course document
-      const course = new Course({
-        name,
-        price: {
-          actualPrice: price.actualPrice,
-          discountPrice: price.discountPrice || undefined,
-        },
-        description: courseDescription, // Ensuring description is a string
-        duration,
-        language,
-        category: categoryDoc._id,
-        pdf: pdfUrl,
-        videos: videoDetails,
-        demoVideo,
-        thumbnail: thumbnailUrl,
+      chapters.push({
+        title: chapter?.title || "Untitled Chapter",
+        description: chapter?.description || "",
+        pdfUrl, // ✅ सिर्फ एक PDF URL store होगा
+        videos: chapterVideos,
       });
-
-      // Save the course to the database
-      await course.save();
-      res.status(201).json(new ApiResponse(201, course, "Course created successfully"));
-
-    } catch (error) {
-      console.error("Error creating course:", error);
-      return next(new ApiError(500, "Failed to create course"));
     }
-  });
+
+    // **Intro Video Upload कर रहे हैं**
+    let introVideoUrl = "";
+    if (req.files["introVideo"]?.[0]?.path) {
+      try {
+        const introVideoUpload = await uploadOnCloudinary(req.files["introVideo"][0].path, "videos");
+        introVideoUrl = introVideoUpload?.secure_url || "";
+      } catch (error) {
+        console.error("Intro Video Upload Error:", error);
+      }
+    }
+
+    // **Intro Thumbnail Upload कर रहे हैं**
+    let introThumbnailUrl = "";
+    if (req.files["introThumbnail"]?.[0]?.path) {
+      try {
+        const introThumbnailUpload = await uploadOnCloudinary(req.files["introThumbnail"][0].path, "thumbnails");
+        introThumbnailUrl = introThumbnailUpload?.secure_url || "";
+      } catch (error) {
+        console.error("Intro Thumbnail Upload Error:", error);
+      }
+    }
+
+    // **Course Create कर रहे हैं**
+    const newCourse = new Course({
+      actualPrice,
+      discountPrice,
+      duration,
+      language,
+      category,
+      introVideo: introVideoUrl,
+      introThumbnail: introThumbnailUrl,
+      chapters,
+    });
+
+    await newCourse.save();
+    return res.status(201).json({ message: "Course created successfully", course: newCourse });
+  } catch (error) {
+    console.error("Error creating course:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 });
+
 
 // ================ Get all courses ==================
 const getCourses = asynchandler(async (req, res, next) => {
@@ -117,47 +181,20 @@ const updateCourse = asynchandler(async (req, res, next) => {
       return next(new ApiError(400, err.message));
     }
 
-    const { name, price, description, duration, language, category, demoVideo } = req.body;
-    const { pdf, videos, thumbnail } = req.files || {};
+    const { actualPrice, discountPrice, duration, language, category, chaptersData  } = req.body;
 
     try {
-      // Upload files if provided
-      const thumbnailUrl = thumbnail
-        ? (await uploadOnCloudinary(thumbnail[0]?.buffer, "courses/thumbnails"))
-            ?.secure_url
-        : undefined;
-
-      const pdfUrl = pdf
-        ? (await uploadOnCloudinary(pdf[0]?.buffer, "courses/pdfs"))?.secure_url
-        : undefined;
-
-      const videoDetails = [];
-      if (videos) {
-        for (const video of videos) {
-          const videoUrl = await uploadOnCloudinary(video.buffer, "courses/videos");
-          videoDetails.push({
-            url: videoUrl.secure_url,
-            title: video.originalname, // Assuming title is the original file name
-            thumbnail: video.thumbnail ? (await uploadOnCloudinary(video.thumbnail.buffer, "courses/thumbnails")).secure_url : undefined,
-            pdf: video.pdf ? (await uploadOnCloudinary(video.pdf.buffer, "courses/pdfs")).secure_url : undefined,
-          });
-        }
-      }
 
       // Update the course
       const updatedCourse = await Course.findByIdAndUpdate(
         req.params.id,
         {
-          name,
-          price,
-          description,
+          actualPrice,
+          discountPrice,
           duration,
           language,
           category,
-          demoVideo,
-          ...(thumbnailUrl && { thumbnail: thumbnailUrl }),
-          ...(pdfUrl && { pdf: pdfUrl }),
-          ...(videoDetails.length > 0 && { videos: videoDetails }),
+          chapters: JSON.parse(chaptersData),
         },
         { new: true }
       );
