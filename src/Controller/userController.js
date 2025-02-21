@@ -252,6 +252,16 @@ const getAllUsers = asynchandler(async (req, res) => {
     .json(new ApiResponse(200, users, "Users fetched successfully"));
 });
 
+const getUser = asynchandler(async (req, res) => {
+  const { id } = req.params;
+  const user = await User.findById(id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  res.status(200).json(new ApiResponse(200, user, "User fetched successfully"));
+});
+
 export {
   signUpUser,
   verifyOtp,
@@ -260,4 +270,5 @@ export {
   resetPassword,
   logoutUser,
   getAllUsers,
+  getUser
 };
