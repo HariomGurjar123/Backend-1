@@ -14,9 +14,11 @@ const router = express.Router();
 router.post(
   "/create",
   upload.fields([
-    { name: "pdf", maxCount: 5 },
-    { name: "videos", maxCount: 5 },
-    { name: "thumbnail", maxCount: 5 },
+    { name: "introVideo", maxCount: 1 },
+    { name: "introThumbnail", maxCount: 1 },
+    { name: "pdfUrl", maxCount: 50 },
+    { name: "videos", maxCount: 10 },
+    { name: "thumbnails", maxCount: 10 }
   ]),
   createCourse
 );
