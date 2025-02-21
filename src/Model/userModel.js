@@ -12,6 +12,12 @@ const userSchema = new mongoose.Schema(
     userType: { type: String, enum: ["normal", "enrolled"], default: "normal" },
     token: { type: String },
     sessionActive: { type: Boolean, default: false },
+    courses:[
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Course"
+      }
+    ]
   },
   { timestamps: true }
 );

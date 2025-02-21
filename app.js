@@ -48,8 +48,8 @@ app.use("/cart", cartRouter);
 import categoryRouter from "./src/Routes/categoryRouter.js";
 app.use("/category", categoryRouter);
 
-// import paymentRouter from "./src/Routes/paymentRouter.js";
-// app.use("/payment", paymentRouter);
+import paymentRouter from "./src/Routes/paymentRouter.js";
+app.use("/payment", paymentRouter);
 
 import dashboardRouter from "./src/Routes/dashboardRouter.js";
 app.use("/dashboard", dashboardRouter);

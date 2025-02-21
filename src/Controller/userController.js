@@ -245,7 +245,8 @@ const logoutUser = asynchandler(async (req, res) => {
 const getAllUsers = asynchandler(async (req, res) => {
   const users = await User.find({ role: { $ne: "admin" } }).sort({
     createdAt: -1,
-  });
+  })
+  .populate("courses")
 
   res
     .status(200)
@@ -254,7 +255,8 @@ const getAllUsers = asynchandler(async (req, res) => {
 
 const getUser = asynchandler(async (req, res) => {
   const { id } = req.params;
-  const user = await User.findById(id);
+  const user = await User.findById(id)
+  .populate("courses")
   if (!user) {
     throw new ApiError(404, "User not found");
   }
