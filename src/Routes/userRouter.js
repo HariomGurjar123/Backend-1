@@ -20,7 +20,7 @@ router.post("/login", loginUser);
 router.post("/forgotPass", forgotPassword);
 router.post("/resetPass", resetPassword);
 router.post("/logoutPass", logoutUser);
-router.post("/get-user/:id", getUser); 
+router.post("/get-user/:id", getUser);
 router.post("/getAll",auth, authorizeRoles("admin"), getAllUsers);
 router.post("/otpVerify", verifyOtp);
 
