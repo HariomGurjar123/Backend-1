@@ -16,7 +16,7 @@ const courseSchema = new mongoose.Schema(
         pdfUrl: { type: String, required: false },
         videos: [
           {
-            videoUrl: { type: String, required: false },
+            videoUrl: { type: String, default:"" },
             title: { type: String, required: true },
             thumbnail: { type: String, required:  false},
             duration: { type: String, required: true },

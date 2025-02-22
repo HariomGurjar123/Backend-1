@@ -5,6 +5,7 @@ import {
   getCourseById,
   updateCourse,
   deleteCourse,
+  getVideoId
 } from "../Controller/courseController.js";
 import { authorizeRoles, auth } from "../Middlewear/auth.js";
 import upload from "../Middlewear/multer.js";
@@ -17,7 +18,7 @@ router.post(
     { name: "introVideo", maxCount: 1 },
     { name: "introThumbnail", maxCount: 1 },
     { name: "pdfUrl", maxCount: 50 },
-    { name: "videos", maxCount: 10 },
+    // { name: "videos", maxCount: 10 },
     { name: "thumbnails", maxCount: 10 }
   ]),
   createCourse
@@ -34,5 +35,6 @@ router.put(
   updateCourse
 );
 router.delete("/delete/:id", auth, authorizeRoles("admin"), deleteCourse);
+router.get("/get-videoId/:videoId", getVideoId)
 
 export default router;

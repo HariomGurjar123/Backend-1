@@ -4,6 +4,7 @@ import { ApiResponse } from "../Utils/apiResponse.js";
 import uploadOnCloudinary from "../Utils/cloudinary.js";
 import asynchandler from "../Utils/asyncHandler.js";
 import Category from "../Model/categoryModel.js";
+import axios from "axios";
 
 
 // ============== Create a new course ===============
@@ -29,11 +30,9 @@ const createCourse = asynchandler(async (req, res) => {
     const parsedChapters = JSON.parse(chaptersData || "[]");
     const chapters = [];
 
-    const videos = req.files["videos"] || [];
     const thumbnails = req.files["thumbnails"] || [];
     const pdfs = req.files?.["pdfUrl"] || []; // ✅ Ensure pdfs is always an array
 
-    let videoIndex = 0;
     let thumbnailIndex = 0;
     let pdfIndex = 0;
 
@@ -41,26 +40,10 @@ const createCourse = asynchandler(async (req, res) => {
       const chapter = parsedChapters[i];
       const chapterVideos = [];
 
-      // **Videos Assign कर रहे हैं**
       if (chapter.videos?.length > 0) {
         for (let j = 0; j < chapter.videos.length; j++) {
-          let videoUrl = "";
           let thumbnailUrl = "";
 
-          if (videoIndex < videos.length) {
-            const videoFile = videos[videoIndex];
-            if (videoFile?.path) {
-              try {
-                const videoUpload = await uploadOnCloudinary(videoFile.path, "videos");
-                videoUrl = videoUpload?.secure_url || "";
-              } catch (error) {
-                console.error("Video Upload Error:", error);
-              }
-            }
-            videoIndex++;
-          }
-
-          // **Thumbnail Handling Fix**
           if (thumbnailIndex < thumbnails.length) {
             const thumbnailFile = thumbnails[thumbnailIndex];
             if (thumbnailFile?.path) {
@@ -75,7 +58,7 @@ const createCourse = asynchandler(async (req, res) => {
           }
 
           chapterVideos.push({
-            videoUrl,
+            videoUrl:chapter.videos[j]?.videoUrl || "",
             title: chapter.videos[j]?.title || "Untitled Video",
             duration: chapter.videos[j]?.duration || "0:00",
             thumbnail: thumbnailUrl,
@@ -83,7 +66,6 @@ const createCourse = asynchandler(async (req, res) => {
         }
       }
 
-      // **हर Chapter के लिए सिर्फ एक PDF अपलोड करें**
 
       let pdfUrl = ""; // Default blank
       if (pdfIndex < pdfs.length) {
@@ -225,4 +207,23 @@ const deleteCourse = asynchandler(async (req, res, next) => {
     .json(new ApiResponse(200, null, "Course deleted successfully"));
 });
 
-export { createCourse, getCourses, getCourseById, updateCourse, deleteCourse };
+const getVideoId = asynchandler(async (req, res) => {
+  try {
+    const {videoId} = req.params;
+      const response = await axios.get(`https://dev.vdocipher.com/api/videos/${videoId}/otp`, {
+          headers: {
+              Authorization: `Apisecret ${process.env.VDOCIPHER_API_KEY}`,
+          },
+      });
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, response.data, "OTP retrieved"))
+  } catch (error) {
+      console.error("Error getting embed OTP:", error.response?.data || error.message);
+  }
+})
+
+
+
+export { createCourse, getCourses, getCourseById, updateCourse, deleteCourse,getVideoId };
